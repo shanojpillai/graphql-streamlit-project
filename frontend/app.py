@@ -2,6 +2,12 @@ import streamlit as st
 from graphql_client import run_query
 import pandas as pd
 import plotly.express as px
+import sys
+import os
+
+# Add the parent directory to the path to import from pages
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from pages.rest_comparison import display_rest_comparison
 
 # Set page configuration
 st.set_page_config(
@@ -70,25 +76,68 @@ elif page == "GraphQL Explorer":
     
     limit = st.slider("Limit", min_value=1, max_value=100, value=10)
     offset = st.slider("Offset", min_value=0, max_value=100, value=0)
-    category = st.text_input("Filter by Category (optional)")
+    
+    # Get all available categories
+    categories = []
+    try:
+        # Query to get all items to extract categories
+        all_items_query = """
+        query {
+            items(limit: 100) {
+                category
+            }
+        }
+        """
+        result = run_query(all_items_query)
+        if result and "items" in result:
+            # Extract unique categories
+            categories = list(set([item["category"] for item in result["items"] if "category" in item]))
+    except Exception:
+        # If there's an error, use default categories
+        categories = ["A", "B", "C"]
+    
+    # Category filter
+    category = st.selectbox("Filter by Category", options=["All"] + categories)
+    category_filter = f'category: "{category}"' if category != "All" else ""
+    
+    # Field selection
+    st.subheader("Select Fields")
+    fields = ["id", "name", "value", "category"]
+    selected_fields = []
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.checkbox("id", value=True):
+            selected_fields.append("id")
+        if st.checkbox("name", value=True):
+            selected_fields.append("name")
+    
+    with col2:
+        if st.checkbox("value", value=True):
+            selected_fields.append("value")
+        if st.checkbox("category", value=True):
+            selected_fields.append("category")
+    
+    if not selected_fields:
+        st.warning("Please select at least one field.")
+        selected_fields = ["id"]  # Default to at least one field
     
     # Construct the query
-    query = """
-    query {
+    fields_str = "\n            ".join(selected_fields)
+    query = f"""
+    query {{
         items(
-            limit: %d
-            offset: %d
-            %s
-        ) {
-            id
-            name
-            value
-            category
-        }
-    }
-    """ % (limit, offset, f'category: "{category}"' if category else '')
+            limit: {limit}
+            offset: {offset}
+            {category_filter}
+        ) {{
+            {fields_str}
+        }}
+    }}
+    """
     
     # Display the query
+    st.subheader("Generated Query")
     st.code(query, language="graphql")
     
     # Execute the query
@@ -100,26 +149,27 @@ elif page == "GraphQL Explorer":
                     st.success(f"Query returned {len(result['items'])} items")
                     df = pd.DataFrame(result["items"])
                     st.dataframe(df)
+                    
+                    # Add visualization if certain fields are selected
+                    if "value" in selected_fields and "name" in selected_fields:
+                        st.subheader("Data Visualization")
+                        
+                        if "category" in selected_fields:
+                            fig = px.bar(df, x="name", y="value", color="category", 
+                                        title="Item Values by Category")
+                        else:
+                            fig = px.bar(df, x="name", y="value", 
+                                        title="Item Values")
+                            
+                        st.plotly_chart(fig)
                 else:
                     st.warning("No data returned from the query")
             except Exception as e:
                 st.error(f"Error executing query: {e}")
 
 elif page == "REST Comparison":
-    st.header("GraphQL vs REST Comparison")
-    
-    st.markdown("""
-    This page demonstrates how GraphQL solves some common issues with REST APIs:
-    
-    1. **Over-fetching** - REST APIs often return more data than needed
-    2. **Under-fetching** - Multiple REST API calls needed to get related data
-    3. **Flexibility** - REST APIs have fixed response structures
-    
-    Let's see this in action:
-    """)
-    
-    # Comparison demo to be implemented
-    st.info("This section will be implemented once we have a dataset selected.")
+    # Call the function from the imported module
+    display_rest_comparison()
 
 elif page == "About":
     st.header("About This Project")
@@ -130,7 +180,7 @@ elif page == "About":
     **Technologies used:**
     - Backend: Python, Strawberry GraphQL, FastAPI
     - Frontend: Streamlit, Plotly
-    - Data: [Dataset description will go here]
+    - Data: Simple product dataset with categories
     
     **Key Features:**
     - GraphQL API with filtering and pagination
@@ -140,4 +190,34 @@ elif page == "About":
     
     **GitHub Repository:**
     [https://github.com/shanojpillai/graphql-streamlit-project](https://github.com/shanojpillai/graphql-streamlit-project)
+    
+    **Next Steps:**
+    - Add a real-world dataset from Kaggle
+    - Implement more complex GraphQL queries with nested data
+    - Add mutations for data modification
+    - Enhance visualizations and comparisons
     """)
+    
+    st.subheader("GraphQL vs REST API")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        ### REST API
+        - Fixed endpoints for different resources
+        - Returns predefined data structures
+        - Often requires multiple requests
+        - Versioning can be challenging
+        - Widely adopted and understood
+        """)
+    
+    with col2:
+        st.markdown("""
+        ### GraphQL API
+        - Single endpoint for all resources
+        - Client specifies exactly what data it needs
+        - Can retrieve multiple resources in one request
+        - Strong typing and self-documenting
+        - Evolves without breaking clients
+        """)

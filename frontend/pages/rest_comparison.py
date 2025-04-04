@@ -75,21 +75,17 @@ def display_rest_comparison():
                         id
                         name
                         category
-                        # Related data that would require additional REST calls
-                        relatedItems {
-                            id
-                            name
-                        }
+                        value
                     }
                 }
             """,
             "rest_endpoints": [
                 "/api/items?limit=5", 
-                "/api/items/1/related",
-                "/api/items/2/related",
-                "/api/items/3/related",
-                "/api/items/4/related",
-                "/api/items/5/related"
+                "/api/items/1/details",
+                "/api/items/2/details",
+                "/api/items/3/details",
+                "/api/items/4/details",
+                "/api/items/5/details"
             ]
         }
     ]
@@ -152,16 +148,38 @@ def display_rest_comparison():
                     for endpoint in scenario["rest_endpoints"]:
                         # Just simulate the timing, don't actually make the request
                         # since we're demonstrating the concept
-                        time.sleep(0.1)  # simulate network latency
+                        time.sleep(0.2)  # simulate network latency for each request
                         
-                        # Dummy response
-                        dummy_response = {
-                            "data": [
-                                {"id": "1", "name": "Item 1", "value": 10.5},
-                                {"id": "2", "name": "Item 2", "value": 20.0}
-                            ],
-                            "endpoint": endpoint
-                        }
+                        # Create detailed dummy responses based on endpoint
+                        if "/details" in endpoint:
+                            item_id = endpoint.split("/")[-2]
+                            dummy_response = {
+                                "id": item_id,
+                                "name": f"Item {item_id}",
+                                "details": {
+                                    "description": f"Detailed description for item {item_id}",
+                                    "created_at": "2023-05-10T14:30:00Z",
+                                    "updated_at": "2023-05-15T09:45:00Z",
+                                    "extra_info": "Additional data that comes with every request"
+                                },
+                                "endpoint": endpoint
+                            }
+                        else:
+                            # General listing endpoint
+                            dummy_response = {
+                                "data": [
+                                    {"id": "1", "name": "Item 1", "value": 10.5, "category": "A", 
+                                     "created_at": "2023-05-10T14:30:00Z", "extra_field1": "value1", "extra_field2": "value2"},
+                                    {"id": "2", "name": "Item 2", "value": 20.0, "category": "B",
+                                     "created_at": "2023-05-11T10:15:00Z", "extra_field1": "value3", "extra_field2": "value4"}
+                                ],
+                                "pagination": {
+                                    "total": 10,
+                                    "page": 1,
+                                    "limit": 10
+                                },
+                                "endpoint": endpoint
+                            }
                         
                         results.append(dummy_response)
                         total_data_size += len(json.dumps(dummy_response))
@@ -171,10 +189,14 @@ def display_rest_comparison():
                     
                     st.success(f"{len(scenario['rest_endpoints'])} API calls executed in {execution_time:.2f} ms")
                     
-                    # Display the results
-                    for i, result in enumerate(results):
-                        st.markdown(f"**Response {i+1}:**")
-                        st.json(result)
+                    # Display the results (limit to first few to avoid clutter)
+                    display_limit = min(3, len(results))
+                    for i in range(display_limit):
+                        st.markdown(f"**Response {i+1}/{len(results)}:**")
+                        st.json(results[i])
+                    
+                    if len(results) > display_limit:
+                        st.info(f"... and {len(results) - display_limit} more responses (not shown for brevity)")
                     
                     # Store metrics for comparison
                     st.session_state.rest_time = execution_time
@@ -190,12 +212,12 @@ def display_rest_comparison():
         comparison_data = {
             "Metric": ["Total Execution Time (ms)", "Number of API Requests", "Data Size (bytes)"],
             "GraphQL": [
-                st.session_state.graphql_time,
+                f"{st.session_state.graphql_time:.2f}",
                 st.session_state.graphql_requests,
                 st.session_state.graphql_data_size
             ],
             "REST": [
-                st.session_state.rest_time,
+                f"{st.session_state.rest_time:.2f}",
                 st.session_state.rest_requests,
                 st.session_state.rest_data_size
             ]
@@ -205,17 +227,19 @@ def display_rest_comparison():
         st.table(df)
         
         # Calculate and display efficiency gains
-        st.subheader("Efficiency Gains with GraphQL")
-        
         time_improvement = (st.session_state.rest_time - st.session_state.graphql_time) / st.session_state.rest_time * 100
         request_reduction = ((st.session_state.rest_requests - st.session_state.graphql_requests) / 
                              st.session_state.rest_requests * 100)
+        data_efficiency = ((st.session_state.rest_data_size - st.session_state.graphql_data_size) / 
+                          st.session_state.rest_data_size * 100)
         
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Time Saved", f"{time_improvement:.1f}%", "faster")
         with col2:
             st.metric("Requests Reduced", f"{request_reduction:.1f}%", "fewer")
+        with col3:
+            st.metric("Data Efficiency", f"{data_efficiency:.1f}%", "less data")
         
         st.markdown("""
         ### Key Takeaways
@@ -224,7 +248,66 @@ def display_rest_comparison():
         - **GraphQL is more efficient** by only fetching the required data
         - **GraphQL provides more flexibility** for clients to specify their data needs
         - **GraphQL evolves better over time** with backward-compatible schema changes
+        
+        ### Real-world Impact
+        
+        These efficiency gains can lead to:
+        - Faster loading times for users
+        - Reduced bandwidth usage (important for mobile users)
+        - Lower server load and infrastructure costs
+        - Better developer experience with a more flexible API
         """)
+
+        # Example code comparison
+        st.subheader("Code Comparison")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### GraphQL Client Code")
+            st.code("""
+// Single request fetches exactly what we need
+const getData = async () => {
+  const response = await client.query({
+    query: gql`
+      query {
+        items(limit: 5) {
+          id
+          name
+          value
+          category
+        }
+      }
+    `
+  });
+  
+  return response.data.items;
+};
+            """, language="javascript")
+            
+        with col2:
+            st.markdown("#### REST Client Code")
+            st.code("""
+// Multiple requests needed for the same data
+const getData = async () => {
+  // Get basic item data
+  const itemsResponse = await fetch('/api/items?limit=5');
+  const items = await itemsResponse.json();
+  
+  // Get details for each item with separate requests
+  const itemDetails = await Promise.all(
+    items.data.map(async (item) => {
+      const detailsResponse = await fetch(
+        `/api/items/${item.id}/details`
+      );
+      const details = await detailsResponse.json();
+      return { ...item, ...details };
+    })
+  );
+  
+  return itemDetails;
+};
+            """, language="javascript")
 
 if __name__ == "__main__":
     display_rest_comparison()

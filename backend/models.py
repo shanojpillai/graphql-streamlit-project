@@ -1,11 +1,24 @@
 from dataclasses import dataclass
 from typing import Optional, List
+import strawberry
 
-# This file will contain data models that will be used in the application
-# These models will be adjusted based on the chosen dataset
-
-@dataclass
+# Define Strawberry types for GraphQL schema
+@strawberry.type
 class Item:
+    id: str
+    name: str
+    value: float
+    category: str
+
+@strawberry.input
+class ItemInput:
+    name: str
+    value: float
+    category: str
+
+# Define regular dataclasses for internal use
+@dataclass
+class ItemModel:
     """
     Base data model class for items in the dataset
     Will be extended based on the actual dataset columns

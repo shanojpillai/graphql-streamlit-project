@@ -23,7 +23,13 @@ def get_data_from_database() -> List[Dict[str, Any]]:
                 {"id": "1", "name": "Item 1", "value": 10.5, "category": "A"},
                 {"id": "2", "name": "Item 2", "value": 20.0, "category": "B"},
                 {"id": "3", "name": "Item 3", "value": 30.7, "category": "A"},
-                # Add more dummy data as needed
+                {"id": "4", "name": "Item 4", "value": 15.2, "category": "C"},
+                {"id": "5", "name": "Item 5", "value": 25.8, "category": "B"},
+                {"id": "6", "name": "Item 6", "value": 35.9, "category": "A"},
+                {"id": "7", "name": "Item 7", "value": 18.3, "category": "C"},
+                {"id": "8", "name": "Item 8", "value": 22.1, "category": "B"},
+                {"id": "9", "name": "Item 9", "value": 40.5, "category": "A"},
+                {"id": "10", "name": "Item 10", "value": 33.7, "category": "C"},
             ]
             return _data_cache
         
